@@ -16,7 +16,7 @@ router.post("/", async (req, res) => {
 router.get("/:userid", async (req, res) => {
   try {
     const bag = await Bag.find({ userId: req.params.userid }).populate(
-      "productId"
+      "productId",
     );
     res.status(200).json(bag);
   } catch (error) {
@@ -34,4 +34,33 @@ router.delete("/:itemid", async (req, res) => {
     return res.status(500).json({ message: "Error removing item from bag" });
   }
 });
+
+router.patch("/saveforlater/:itemid", async (req, res) => {
+  try {
+    const updatedItem = await Bag.findByIdAndUpdate(
+      req.params.itemid,
+      { isSavedForLater: true },
+      { new: true },
+    ).populate("productId");
+    res.status(200).json(updatedItem);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: "Error saving item for later" });
+  }
+});
+
+router.patch("/movetobag/:itemid", async (req, res) => {
+  try {
+    const updatedItem = await Bag.findByIdAndUpdate(
+      req.params.itemid,
+      { isSavedForLater: false },
+      { new: true },
+    ).populate("productId");
+    res.status(200).json(updatedItem);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: "Error moving item to bag" });
+  }
+});
+
 module.exports = router;
