@@ -8,6 +8,12 @@ const TransactionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      required: false, // Optional for now to support old transactions or non-order transactions
+      index: true,
+    },
     date: {
       type: Date,
       required: true,

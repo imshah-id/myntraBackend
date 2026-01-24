@@ -5,7 +5,8 @@ const { Parser } = require("json2csv");
 // POST /api/transactions - Create a new transaction
 exports.createTransaction = async (req, res) => {
   try {
-    const { userId, date, amount, type, status, paymentMode } = req.body;
+    const { userId, date, amount, type, status, paymentMode, orderId } =
+      req.body;
 
     // Validation
     if (!userId || !amount || !type || !status || !paymentMode) {
@@ -42,6 +43,7 @@ exports.createTransaction = async (req, res) => {
       type,
       status,
       paymentMode,
+      orderId, // Save the order link
     });
 
     await transaction.save();
@@ -81,7 +83,9 @@ exports.getTransactions = async (req, res) => {
       if (dateTo) query.date.$lte = new Date(dateTo);
     }
 
-    const transactions = await Transaction.find(query).sort({ date: -1 });
+    const transactions = await Transaction.find(query)
+      .sort({ date: -1 })
+      .populate("orderId", "status"); // Populate order status for display
     res.json(transactions);
   } catch (error) {
     console.error("Error fetching transactions:", error);

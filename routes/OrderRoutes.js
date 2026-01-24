@@ -11,6 +11,7 @@ function genrateRandomTracking() {
     "Out for Delivery",
     "Delivered",
     "In Transit",
+    "Shipped",
   ];
   const locations = ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Pune"];
   const randomcarrier = carriers[Math.floor(Math.random() * carriers.length)];
@@ -23,7 +24,7 @@ function genrateRandomTracking() {
     number: "TRK" + Math.floor(Math.random() * 10000000),
     carrier: randomcarrier,
     estimatedDelivery: new Date(
-      Date.now() + 5 * 24 * 60 * 60 * 1000
+      Date.now() + 5 * 24 * 60 * 60 * 1000,
     ).toISOString(),
     currentLocation: randomlocations,
     status: randomstatusOptions,
@@ -56,7 +57,7 @@ router.post("/create/:userId", async (req, res) => {
     }));
     const total = orderitem.reduce(
       (sum, item) => sum + item.price + item.quantity,
-      0
+      0,
     );
     const newOrder = new Order({
       userId: userid,
@@ -65,12 +66,14 @@ router.post("/create/:userId", async (req, res) => {
       item: orderitem,
       total: total,
       shippingAddress: req.body.shippingAddress,
-      paymentMethod:req.body.paymentMethod,
+      paymentMethod: req.body.paymentMethod,
       tracking: genrateRandomTracking(),
     });
     await newOrder.save();
     await Bag.deleteMany({ userId: userid });
-    res.status(200).json({ message: "Order placed successfully" });
+    res
+      .status(200)
+      .json({ message: "Order placed successfully", order: newOrder });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Something went wrong" });
@@ -79,9 +82,67 @@ router.post("/create/:userId", async (req, res) => {
 router.get("/user/:userid", async (req, res) => {
   try {
     const order = await Order.find({ userId: req.params.userid }).populate(
-      "items.productId"
+      "items.productId",
     );
-    res.status(200).json(order);
+
+    // Lazy Status Update Logic
+    const updatedOrders = await Promise.all(
+      order.map(async (ord) => {
+        let needsUpdate = false;
+        const now = new Date();
+        const createdParams = new Date(ord.createdAt);
+        const elapsedMinutes = (now - createdParams) / (1000 * 60);
+
+        // Faster time-based progression for demo
+        // 0-1 min: Order Confirmed
+        // 1-3 min: Shipped
+        // 3-5 min: In Transit
+        // 5-8 min: Out for Delivery
+        // 8+ min: Delivered
+
+        let newStatus = ord.status;
+        if (elapsedMinutes > 8 && ord.status !== "Delivered") {
+          newStatus = "Delivered";
+        } else if (
+          elapsedMinutes > 5 &&
+          ord.status !== "Out for Delivery" &&
+          ord.status !== "Delivered"
+        ) {
+          newStatus = "Out for Delivery";
+        } else if (
+          elapsedMinutes > 3 &&
+          ord.status !== "In Transit" &&
+          ord.status !== "Out for Delivery" &&
+          ord.status !== "Delivered"
+        ) {
+          newStatus = "In Transit";
+        } else if (
+          elapsedMinutes > 1 &&
+          ord.status !== "Shipped" &&
+          ord.status !== "In Transit" &&
+          ord.status !== "Out for Delivery" &&
+          ord.status !== "Delivered"
+        ) {
+          newStatus = "Shipped";
+        }
+
+        if (newStatus !== ord.status) {
+          ord.status = newStatus;
+          // Update timeline locally for consistency (simplified)
+          if (ord.tracking && ord.tracking.timeline) {
+            ord.tracking.timeline.push({
+              status: newStatus,
+              location: "Update",
+              timestamp: new Date().toISOString(),
+            });
+          }
+          await ord.save();
+        }
+        return ord;
+      }),
+    );
+
+    res.status(200).json(updatedOrders);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Something went wrong" });
