@@ -15,13 +15,29 @@ router.post("/", async (req, res) => {
 
 router.get("/:userid", async (req, res) => {
   try {
-    const bag = await Bag.find({ userId: req.params.userid }).populate(
-      "productId",
-    );
+    // Only return items that are NOT saved for later (active cart items)
+    const bag = await Bag.find({
+      userId: req.params.userid,
+      isSavedForLater: { $ne: true },
+    }).populate("productId");
     res.status(200).json(bag);
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Something went wrong" });
+  }
+});
+
+// Get saved-for-later items
+router.get("/saved-for-later/:userid", async (req, res) => {
+  try {
+    const savedItems = await Bag.find({
+      userId: req.params.userid,
+      isSavedForLater: true,
+    }).populate("productId");
+    res.status(200).json(savedItems);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: "Error fetching saved items" });
   }
 });
 
