@@ -10,6 +10,7 @@ const OrderRoutes = require("./routes/OrderRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const recommendationRoutes = require("./routes/recommendationRoutes");
 const transactionRoutes = require("./routes/transactionRoutes");
+const offerScheduler = require("./jobs/offerScheduler");
 const cors = require("cors");
 dotenv.config();
 const app = express();
@@ -24,13 +25,15 @@ app.use("/product", productrouter);
 app.use("/bag", Bagroutes);
 app.use("/wishlist", Wishlistroutes);
 app.use("/Order", OrderRoutes);
-app.use("/notifications", notificationRoutes);
+app.use("/api/notifications", notificationRoutes);
 app.use("/api", recommendationRoutes);
 app.use("/api/transactions", transactionRoutes);
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("Mongodb connected");
+    // Start background jobs
+    offerScheduler.startScheduler();
   })
   .catch((err) => console.log(err));
 

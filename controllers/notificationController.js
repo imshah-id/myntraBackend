@@ -27,15 +27,12 @@ exports.registerToken = async (req, res) => {
   }
 };
 
-exports.sendNotification = async (req, res) => {
-  const { userId, title, body, data } = req.body;
-
+const sendPushToUser = async (userId, title, body, data) => {
   try {
     const user = await User.findById(userId);
     if (!user || !user.pushTokens || user.pushTokens.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "User has no registered devices" });
+      console.log(`No tokens found for user ${userId}`);
+      return;
     }
 
     let messages = [];
@@ -53,35 +50,85 @@ exports.sendNotification = async (req, res) => {
       });
     }
 
-    if (messages.length === 0) {
-      return res
-        .status(400)
-        .json({ message: "No valid tokens found for user" });
-    }
+    if (messages.length === 0) return;
 
     let chunks = expo.chunkPushNotifications(messages);
-    let tickets = [];
-
-    // Async function to handle chunks, but we want to wait for at least initial send to fail/succeed or just fire and forget?
-    // The example code used an IIFE (async () => { ... })(); and returned response immediately.
-    // I will await it to provide better feedback if possible, or stick to example pattern if response time is critical.
-    // However, usually it's better to await if we want to confirm simple delivery to Expo API.
-
     for (let chunk of chunks) {
       try {
-        let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-        tickets.push(...ticketChunk);
+        await expo.sendPushNotificationsAsync(chunk);
       } catch (error) {
         console.error("Error sending chunks", error);
       }
     }
+  } catch (error) {
+    console.error("Error internally sending notification:", error);
+  }
+};
 
-    // We can inspect tickets here if needed to see if there are errors (like DeviceNotRegistered)
-    // For now, simpler implementation as per request snippet.
+exports.sendNotificationInternal = async ({ userId, title, body, data }) => {
+  await sendPushToUser(userId, title, body, data);
+};
 
-    res.json({ success: true, message: "Notifications processed", tickets });
+exports.sendNotification = async (req, res) => {
+  const { userId, title, body, data } = req.body;
+
+  try {
+    await sendPushToUser(userId, title, body, data);
+    res.json({ success: true, message: "Notifications processed" });
   } catch (error) {
     console.error("Error sending notification:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+exports.broadcastNotification = async (req, res) => {
+  const { title, body, data } = req.body;
+
+  try {
+    // Find all users with push tokens
+    const users = await User.find({
+      pushTokens: { $exists: true, $not: { $size: 0 } },
+    });
+
+    if (users.length === 0) {
+      return res
+        .status(200)
+        .json({ message: "No users registered for notifications" });
+    }
+
+    let messages = [];
+    for (let user of users) {
+      for (let token of user.pushTokens) {
+        if (!Expo.isExpoPushToken(token)) continue;
+        messages.push({
+          to: token,
+          sound: "default",
+          title: title,
+          body: body,
+          data: data,
+        });
+      }
+    }
+
+    if (messages.length === 0) {
+      return res.status(200).json({ message: "No valid tokens found" });
+    }
+
+    let chunks = expo.chunkPushNotifications(messages);
+    for (let chunk of chunks) {
+      try {
+        await expo.sendPushNotificationsAsync(chunk);
+      } catch (error) {
+        console.error("Error broadcasting chunk", error);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Broadcast sent to ${messages.length} devices`,
+    });
+  } catch (error) {
+    console.error("Error broadcasting:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };

@@ -3,6 +3,7 @@ const Bag = require("../models/Bag");
 const Order = require("../models/Order");
 const router = express.Router();
 const mongoose = require("mongoose");
+const notificationController = require("../controllers/notificationController");
 
 function genrateRandomTracking() {
   const carriers = ["Delhivery", "Bluedart", "Ecom Express", "XpressBees"];
@@ -137,6 +138,21 @@ router.get("/user/:userid", async (req, res) => {
             });
           }
           await ord.save();
+
+          // Trigger Push Notification
+          try {
+            await notificationController.sendNotificationInternal({
+              userId: ord.userId,
+              title: "Order Update",
+              body: `Your order is now ${newStatus}!`,
+              data: { orderId: ord._id },
+            });
+          } catch (notifError) {
+            console.error(
+              "Failed to send status update notification",
+              notifError,
+            );
+          }
         }
         return ord;
       }),

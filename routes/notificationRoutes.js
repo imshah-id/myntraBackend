@@ -14,4 +14,7 @@ router.post(
   notificationController.sendNotification,
 );
 
+// Broadcast notification to ALL users (Admin only ideally)
+router.post("/broadcast", auth, notificationController.broadcastNotification);
+
 module.exports = router;
