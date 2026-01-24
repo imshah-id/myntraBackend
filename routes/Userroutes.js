@@ -1,6 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
+const jwt = require("jsonwebtoken");
 const router = express.Router();
 
 router.post("/signup", async (req, res) => {
@@ -16,8 +17,12 @@ router.post("/signup", async (req, res) => {
       password: hashedpassword,
     });
     await user.save();
+    const token = jwt.sign(
+      { _id: user._id.toString() },
+      process.env.JWT_SECRET || "secret_key_change_me",
+    );
     const { password: _, ...userData } = user.toObject();
-    res.status(201).json({ user: userData });
+    res.status(201).json({ user: userData, token });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Something went wrong" });
@@ -30,12 +35,16 @@ router.post("/login", async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     const ismatch = await bcrypt.compare(password, user.password);
     if (!ismatch) return res.status(404).json({ message: "Invalid password" });
+    const token = jwt.sign(
+      { _id: user._id.toString() },
+      process.env.JWT_SECRET || "secret_key_change_me",
+    );
 
     const { password: _, ...userData } = user.toObject();
-    res.status(201).json({ user: userData });
+    res.status(201).json({ user: userData, token });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Something went wrong" });
   }
 });
-module.exports=router;
+module.exports = router;

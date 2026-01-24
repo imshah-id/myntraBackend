@@ -12,12 +12,16 @@ const UserSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
     },
+    pushTokens: {
+      type: [String],
+      default: [],
+    },
     password: {
       type: String,
       required: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("User", UserSchema);
